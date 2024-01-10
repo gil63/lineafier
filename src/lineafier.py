@@ -3,13 +3,13 @@ import ast
 
 
 def convert_node(node: ast.AST) -> str:
-    match type(node):
-        case ast.Module:
+    match node:
+        case ast.Module():
             body = [convert_node(stmt) for stmt in node.body]
             return "; ".join(body)
-        case ast.Expr:
+        case ast.Expr():
             return convert_node(node.value)
-        case ast.Call:
+        case ast.Call():
             func = convert_node(node.func)
             args = [convert_node(arg) for arg in node.args]
             keywords = [convert_node(arg) for arg in node.keywords]
@@ -17,9 +17,9 @@ def convert_node(node: ast.AST) -> str:
                 return f"{func}({', '.join(args)},{', '.join(keywords)})"
             
             return f"{func}({', '.join(args)}{', '.join(keywords)})"
-        case ast.Name:
+        case ast.Name():
             return node.id
-        case ast.Constant:
+        case ast.Constant():
 
             match node.value:
                 case int():
@@ -32,14 +32,20 @@ def convert_node(node: ast.AST) -> str:
             
             raise ValueError(f"Constant type '{type(node.value).__name__}' not recognized")
         
-        case ast.For:
+        case ast.For():
             target = convert_node(node.target)
             iter_ = convert_node(node.iter)
             body = [convert_node(stmt) for stmt in node.body]
             return f"max(((0, {', '.join(body)}) for {target} in {iter_}), key=lambda x: x[0])"
-        case ast.List:
+        case ast.While():
+            test = convert_node(node.test)
+            body = [convert_node(stmt) for stmt in node.body]
+            return f"max(((0, {', '.join(body)}) for {target} in iter(lambda: {test}), False), key=lambda x: x[0])"
+        case ast.List():
             elts = [convert_node(elt) for elt in node.elts]
             return f"[{', '.join(elts)}]"
+        case ast.Assign():
+            return f"()"
 
     raise ValueError(f"Node type '{type(node).__name__}' not recognized")
 
