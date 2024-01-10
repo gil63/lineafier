@@ -36,7 +36,7 @@ def convert_node(node: ast.AST) -> str:
             target = convert_node(node.target)
             iter_ = convert_node(node.iter)
             body = [convert_node(stmt) for stmt in node.body]
-            return f"[({', '.join(body)}) for {target} in {iter_}]"
+            return f"max(((0, {', '.join(body)}) for {target} in {iter_}), key=lambda x: x[0])"
         case ast.List:
             elts = [convert_node(elt) for elt in node.elts]
             return f"[{', '.join(elts)}]"
