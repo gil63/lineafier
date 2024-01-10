@@ -25,17 +25,21 @@ def convert_node(node: ast.AST) -> str:
                 case int():
                     return str(node.value)
                 case str():
-                    return f'"{node.value}"'
+                    representation = node.value.replace("\n", "\\n")
+                    return f"\"{representation}\""
                 case bytes():
-                    return f'b"{node.value}"'
+                    return str(node.value)
             
             raise ValueError(f"Constant type '{type(node.value).__name__}' not recognized")
         
         case ast.For:
             target = convert_node(node.target)
             iter_ = convert_node(node.iter)
-            body = convert_node(node.body)
-            return f"[{body} for {target} in {iter_}]"
+            body = [convert_node(stmt) for stmt in node.body]
+            return f"[({', '.join(body)}) for {target} in {iter_}]"
+        case ast.List:
+            elts = [convert_node(elt) for elt in node.elts]
+            return f"[{', '.join(elts)}]"
 
     raise ValueError(f"Node type '{type(node).__name__}' not recognized")
 
