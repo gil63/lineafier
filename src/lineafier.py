@@ -6,7 +6,7 @@ def convert_node(node: ast.AST) -> str:
     match node:
         case ast.Module():
             body = [convert_node(stmt) for stmt in node.body]
-            return "; ".join(body)
+            return f"({', '.join(body)})"
         case ast.FunctionDef():
             pass
         case ast.AsyncFunctionDef():
@@ -18,9 +18,11 @@ def convert_node(node: ast.AST) -> str:
         case ast.Delete():
             pass
         case ast.Assign():
-            pass
-        case ast.TypeAlias():
-            pass
+            targets = [convert_node(target) for target in node.targets]
+            value = convert_node(node.value)
+            if len(targets) == 1:
+                return f"{targets[0]} := {value}"
+            return f"({', '.join(targets[0])}) := {value}"
         case ast.AugAssign():
             pass
         case ast.AnnAssign():
@@ -35,7 +37,7 @@ def convert_node(node: ast.AST) -> str:
         case ast.While():
             test = convert_node(node.test)
             body = [convert_node(stmt) for stmt in node.body]
-            return f"max(((0, {', '.join(body)}) for {target} in iter(lambda: {test}), False), key=lambda x: x[0])"
+            return f"max(((0, {', '.join(body)}) for _ in iter(lambda: {test}, False)), key=lambda x: x[0])"
         case ast.If():
             pass
         case ast.With():
@@ -47,8 +49,6 @@ def convert_node(node: ast.AST) -> str:
         case ast.Raise():
             pass
         case ast.Try():
-            pass
-        case ast.TryStar():
             pass
         case ast.Assert():
             pass
@@ -69,7 +69,36 @@ def convert_node(node: ast.AST) -> str:
         case ast.NamedExpr():
             pass
         case ast.BinOp():
-            pass
+            left = convert_node(node.left)
+            right = convert_node(node.right)
+            match node.op:
+                case ast.Add():
+                    op = "+"
+                case ast.Sub():
+                    op = "-"
+                case ast.Mult():
+                    op = "*"
+                case ast.Div():
+                    op = "/"
+                case ast.FloorDiv():
+                    op = "//"
+                case ast.Mod():
+                    op = "%"
+                case ast.Pow():
+                    op = "**"
+                case ast.LShift():
+                    op = "<<"
+                case ast.RShift():
+                    op = ">>"
+                case ast.BitOr():
+                    op = "|"
+                case ast.BitXor():
+                    op = "^"
+                case ast.BitAnd():
+                    op = "&"
+                case ast.MatMult():
+                    op = "@"
+            return f"({left} {op} {right})"
         case ast.UnaryOp():
             pass
         case ast.Lambda():
@@ -95,7 +124,34 @@ def convert_node(node: ast.AST) -> str:
         case ast.YieldFrom():
             pass
         case ast.Compare():
-            pass
+            ret = convert_node(node.left)
+            
+            for op, comparator in zip(node.ops, node.comparators):
+                ret += " "
+                match op:
+                    case ast.Eq():
+                        ret += "=="
+                    case ast.NotEq():
+                        ret += "!="
+                    case ast.Lt():
+                        ret += "<"
+                    case ast.LtE():
+                        ret += "<="
+                    case ast.Gt():
+                        ret += ">"
+                    case ast.GtE():
+                        ret += ">="
+                    case ast.Is():
+                        ret += "is"
+                    case ast.IsNot():
+                        ret += "is not"
+                    case ast.In():
+                        ret += "in"
+                    case ast.NotIn():
+                        ret += "not in"
+                ret += " " + convert_node(comparator)
+            
+            return ret
         case ast.Call():
             func = convert_node(node.func)
             args = [convert_node(arg) for arg in node.args]
