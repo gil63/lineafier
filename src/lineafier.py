@@ -2,11 +2,13 @@ import sys
 import ast
 
 
+def _convert_body(body: list[ast.Expr]) -> str:
+    return f"({', '.join(convert_node(stmt) for stmt in body)})"
+
 def convert_node(node: ast.AST) -> str:
     match node:
         case ast.Module():
-            body = [convert_node(stmt) for stmt in node.body]
-            return f"({', '.join(body)})"
+            return _convert_body(node.body)
         case ast.FunctionDef():
             pass
         case ast.AsyncFunctionDef():
@@ -30,16 +32,17 @@ def convert_node(node: ast.AST) -> str:
         case ast.For():
             target = convert_node(node.target)
             iter_ = convert_node(node.iter)
-            body = [convert_node(stmt) for stmt in node.body]
-            return f"max(((0, {', '.join(body)}) for {target} in {iter_}), key=lambda x: x[0])"
+            return f"max(((0, {_convert_body(node.body)}) for {target} in {iter_}), key=lambda x: x[0])"
         case ast.AsyncFor():
             pass
         case ast.While():
             test = convert_node(node.test)
-            body = [convert_node(stmt) for stmt in node.body]
-            return f"max(((0, {', '.join(body)}) for _ in iter(lambda: {test}, False)), key=lambda x: x[0])"
+            return f"max(((0, {_convert_body(node.body)}) for _ in iter(lambda: {test}, False)), key=lambda x: x[0])"
         case ast.If():
-            pass
+            body = _convert_body(node.body)
+            test = convert_node(node.test)
+            orelse = _convert_body(node.orelse)
+            return f"({body} if {test} else {orelse})"
         case ast.With():
             pass
         case ast.AsyncWith():
