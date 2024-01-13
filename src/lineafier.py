@@ -2,15 +2,42 @@ import sys
 import ast
 
 
-def _convert_body(body: list[ast.Expr]) -> str:
+def _convert_body(body: list[ast.stmt]) -> str:
     return f"({', '.join(convert_node(stmt) for stmt in body)})"
+
+def _convert_for(target: str, iter_: str, body: str):
+    return f"max(((0, {body}) for {target} in {iter_}), key=lambda x: x[0])"
+
+def _convert_arguments(posonlyargs: list[ast.arg], args: list[ast.arg], vararg: ast.arg, kwonlyargs: list[ast.arg], kw_defaults: [ast.expr], kwarg: ast.arg, defaults: list[ast.expr]) -> str:
+    filled_defaults = [None] * (len(posonlyargs) + len(args) - len(defaults)) + defaults + kw_defaults
+    args_strs = [arg.arg + ("" if default is None else f"={convert_node(default)}") for arg, default in zip(posonlyargs + args + kwonlyargs, filled_defaults)]
+
+    if kwarg is not None:
+        args_strs.append(f"**{kwarg.arg}")
+
+    if vararg is not None:
+        args_strs.insert(len(posonlyargs) + len(args), f"*{vararg.arg}")
+    elif kwonlyargs:
+        args_strs.insert(len(posonlyargs) + len(args), "*")
+
+    if posonlyargs:
+        args_strs.insert(len(posonlyargs), "/")
+    
+    return ", ".join(args_strs)
 
 def convert_node(node: ast.AST) -> str:
     match node:
         case ast.Module():
             return _convert_body(node.body)
         case ast.FunctionDef():
-            pass
+            args_str = _convert_arguments(node.args.posonlyargs, node.args.args, node.args.vararg, node.args.kwonlyargs, node.args.kw_defaults, node.args.kwarg, node.args.defaults)
+
+            if node.decorator_list:
+                decorator_strs = [convert_node(decorator) for decorator in node.decorator_list]
+
+                return f"{node.name} := {'('.join(decorator_strs)}(lambda {args_str}: {_convert_body(node.body)}{')' * len(decorator_strs)}"
+            
+            return f"{node.name} := lambda {args_str}: {_convert_body(node.body)}"
         case ast.AsyncFunctionDef():
             pass
         case ast.ClassDef():
@@ -30,14 +57,11 @@ def convert_node(node: ast.AST) -> str:
         case ast.AnnAssign():
             pass
         case ast.For():
-            target = convert_node(node.target)
-            iter_ = convert_node(node.iter)
-            return f"max(((0, {_convert_body(node.body)}) for {target} in {iter_}), key=lambda x: x[0])"
+            return _convert_for(convert_node(node.target), convert_node(node.iter), _convert_body(node.body))
         case ast.AsyncFor():
             pass
         case ast.While():
-            test = convert_node(node.test)
-            return f"max(((0, {_convert_body(node.body)}) for _ in iter(lambda: {test}, False)), key=lambda x: x[0])"
+            return _convert_for("_", f"iter(lambda: {convert_node(node.test)}, False)", _convert_body(node.body))
         case ast.If():
             body = _convert_body(node.body)
             test = convert_node(node.test)
@@ -176,6 +200,8 @@ def convert_node(node: ast.AST) -> str:
                     return f"\"{representation}\""
                 case bytes():
                     return str(node.value)
+                case None:
+                    return "None"
             
             raise ValueError(f"Constant type '{type(node.value).__name__}' not recognized")
         case ast.Attribute():
