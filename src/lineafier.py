@@ -92,7 +92,13 @@ def convert_node(node: ast.AST) -> str:
         case ast.Pass():
             pass
         case ast.BoolOp():
-            pass
+            values = [convert_node(value) for value in node.values]
+            match node.op:
+                case ast.And():
+                    op = " and "
+                case ast.Or():
+                    op = " or " 
+            return f"({op.join(values)})"
         case ast.NamedExpr():
             pass
         case ast.BinOp():

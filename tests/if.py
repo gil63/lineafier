@@ -8,3 +8,6 @@ elif x < 2:
 else:
     print("nice")
     print("cool")
+
+if 1 == 1:
+    print("hi")
