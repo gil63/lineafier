@@ -129,7 +129,8 @@ def convert_node(node: ast.AST) -> str:
         case ast.UnaryOp():
             pass
         case ast.Lambda():
-            pass
+            args_str = _convert_arguments(node.args.posonlyargs, node.args.args, node.args.vararg, node.args.kwonlyargs, node.args.kw_defaults, node.args.kwarg, node.args.defaults)
+            return f"(lambda {args_str}: {convert_node(node.body)})"
         case ast.IfExp():
             pass
         case ast.Dict():
@@ -182,7 +183,7 @@ def convert_node(node: ast.AST) -> str:
         case ast.Call():
             func = convert_node(node.func)
             args = [convert_node(arg) for arg in node.args]
-            keywords = [convert_node(arg) for arg in node.keywords]
+            keywords = [f"**{convert_node(keyword.value)}" if keyword.arg is None else f"{keyword.arg}={convert_node(keyword.value)}" for keyword in node.keywords]
             if args and keywords:
                 return f"{func}({', '.join(args)},{', '.join(keywords)})"
             
