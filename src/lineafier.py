@@ -3,12 +3,37 @@ import ast
 
 
 def _convert_body(body: list[ast.stmt]) -> str:
-    return f"({', '.join(convert_node(stmt) for stmt in body)})"
+    if not body:
+        return "None"
+    
+    start = "("
+    end = ")"
+
+    for stmt in body[:-1]:
+        start += f"{convert_node(stmt)}, "
+        has_return = _has_return(stmt)
+        has_break = _has_break(stmt)
+        has_continue = _has_continue(stmt)
+        
+        if not (has_return or has_break or has_continue):
+            continue
+        
+        checked = []
+        if has_return:
+            checked.append("_return")
+        if has_break:
+            checked.append("_break")
+        if has_continue:
+            checked.append("_continue")
+        start += f"None if {' or '.join(checked)} else ("
+        end = ")" + end
+    
+    return start + convert_node(body[-1]) + end
 
 def _convert_for(target: str, iter_: str, body: str):
     return f"max(((0, {body}) for {target} in {iter_}), key=lambda x: x[0])"
 
-def _convert_arguments(posonlyargs: list[ast.arg], args: list[ast.arg], vararg: ast.arg, kwonlyargs: list[ast.arg], kw_defaults: [ast.expr], kwarg: ast.arg, defaults: list[ast.expr]) -> str:
+def _convert_arguments(posonlyargs: list[ast.arg], args: list[ast.arg], vararg: ast.arg, kwonlyargs: list[ast.arg], kw_defaults: list[ast.expr], kwarg: ast.arg, defaults: list[ast.expr]) -> str:
     filled_defaults = [None] * (len(posonlyargs) + len(args) - len(defaults)) + defaults + kw_defaults
     args_strs = [arg.arg + ("" if default is None else f"={convert_node(default)}") for arg, default in zip(posonlyargs + args + kwonlyargs, filled_defaults)]
 
@@ -25,6 +50,28 @@ def _convert_arguments(posonlyargs: list[ast.arg], args: list[ast.arg], vararg: 
     
     return ", ".join(args_strs)
 
+def _has_return(node: ast.AST) -> bool:
+    return _has_type_until(node, ast.Return, [ast.FunctionDef])
+
+def _has_break(node: ast.AST) -> bool:
+    return _has_type_until(node, ast.Break, [ast.For, ast.While, ast.Match])
+
+def _has_continue(node: ast.AST) -> bool:
+    return _has_type_until(node, ast.Continue, [ast.For, ast.While])
+
+def _has_type_until(node: ast.AST, target: type, end_nodes: list[type]=[]) -> bool:
+    if isinstance(node, target):
+        return True
+    
+    for child in ast.iter_child_nodes(node):
+        for t in end_nodes:
+            if isinstance(node, t):
+                break
+        else:
+            if _has_type_until(child, target, end_nodes):
+                return True
+    return False
+
 def convert_node(node: ast.AST) -> str:
     match node:
         case ast.Module():
@@ -35,15 +82,15 @@ def convert_node(node: ast.AST) -> str:
             if node.decorator_list:
                 decorator_strs = [convert_node(decorator) for decorator in node.decorator_list]
 
-                return f"{node.name} := {'('.join(decorator_strs)}(lambda {args_str}: {_convert_body(node.body)}{')' * len(decorator_strs)}"
+                return f"{node.name} := {'('.join(decorator_strs)}(lambda {args_str}: (_return := False, _return_value := None, {_convert_body(node.body)}, _return_value)[-1]{')' * len(decorator_strs)}"
             
-            return f"{node.name} := lambda {args_str}: {_convert_body(node.body)}"
+            return f"{node.name} := lambda {args_str}: (_return := False, _return_value := None, {_convert_body(node.body)}, _return_value)[-1]"
         case ast.AsyncFunctionDef():
             pass
         case ast.ClassDef():
             pass
         case ast.Return():
-            pass
+            return f"_return := True, _return_value := {convert_node(node.value)}"
         case ast.Delete():
             pass
         case ast.Assign():
@@ -90,7 +137,7 @@ def convert_node(node: ast.AST) -> str:
         case ast.Expr():
             return convert_node(node.value)
         case ast.Pass():
-            pass
+            return "None"
         case ast.BoolOp():
             values = [convert_node(value) for value in node.values]
             match node.op:
